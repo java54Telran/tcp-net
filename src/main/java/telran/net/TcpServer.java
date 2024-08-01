@@ -1,6 +1,7 @@
 package telran.net;
 import java.net.*;
-public class TcpServer {
+import static telran.net.TcpConfigurationProperties.*;
+public class TcpServer implements Runnable{
 	Protocol protocol;
 	int port;
 	boolean running = true;
@@ -15,13 +16,18 @@ public class TcpServer {
 		try(ServerSocket serverSocket = new ServerSocket(port)){
 			//TODO using ServerSocket method setSoTimeout 
 			System.out.println("Server is listening on port " + port);
+			serverSocket.setSoTimeout(SOCKET_TIMEOUT);
 			while(running) {
-				Socket socket = serverSocket.accept();
-			
-				TcpClientServerSession session =
-						new TcpClientServerSession(socket, protocol);
-				session.start();
-				//TODO handling timeout exception
+				try {
+					Socket socket = serverSocket.accept();
+
+					TcpClientServerSession session =
+							new TcpClientServerSession(socket, protocol, this);
+					session.start();
+				} catch (SocketTimeoutException e) {
+					
+				}
+				
 			}
 			
 				

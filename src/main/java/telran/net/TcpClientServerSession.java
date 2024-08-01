@@ -2,14 +2,14 @@ package telran.net;
 
 import java.net.*;
 import java.io.*;
-
+import static telran.net.TcpConfigurationProperties.*;
 public class TcpClientServerSession extends Thread{
 	Socket socket;
 	Protocol protocol;
-
-	public TcpClientServerSession(Socket socket, Protocol protocol) {
+	TcpServer tcpServer;
+	public TcpClientServerSession(Socket socket, Protocol protocol, TcpServer tcpServer) {
 		this.socket = socket;
-		//TODO
+		this.tcpServer = tcpServer;
 		//using the method setSoTimeout and some solution for getting session to know about shutdown
 		//you should stop the thread after shutdown command
 		this.protocol = protocol;
@@ -19,16 +19,26 @@ public class TcpClientServerSession extends Thread{
 				new BufferedReader(new InputStreamReader(socket.getInputStream()));
 				PrintStream sender = new PrintStream(socket.getOutputStream())){
 			String line = null;
-			//FIXME 
-			//figure out solution for exiting from the thread after shutdown
-			while((line = receiver.readLine()) != null) {
-				String responseStr = protocol.getResponseWithJSON(line);
-				sender.println(responseStr);
+			boolean sessionRunning = true;
+			socket.setSoTimeout(SOCKET_TIMEOUT);
+			long idleTime = 0;
+			while(tcpServer.running && sessionRunning) {
+				try {
+					line = receiver.readLine();
+					if (line == null) {
+						break;
+					}
+					String responseStr = protocol.getResponseWithJSON(line);
+					sender.println(responseStr);
+					idleTime = 0;
+				} catch (SocketTimeoutException e) {
+					idleTime += SOCKET_TIMEOUT;
+					if (idleTime > SESSION_IDLE_TIMEOUT) {
+						sessionRunning = false;
+					}
+				}
 			}
-			//TODO handling SocketTimeoutException for exiting from the thread on two conditions
-			//1. Shutdown has been performed
-			//2. Thread exists in IDLE state more than 1 minute
-			//exiting from the cycle should be followed by closing connection
+			socket.close();
 			
 		} catch (Exception e) {
 			System.out.println(e);
